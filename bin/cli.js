@@ -20,7 +20,10 @@ const HELP = `
 选项:
   -d, --dir <path>      抽奖文件目录, 可重复指定多个或逗号分隔 (默认: 当前目录)
                         例: -d ./a -d ./b   或   -d ./a,./b
-  -e, --ext <list>      文件后缀集合, 逗号分隔, 留空匹配全部
+  -t, --type <list>     文件类型预设, 可重复或逗号分隔
+                        可选: image, video, audio, text, doc
+                        例: -t image,video
+  -e, --ext <list>      自定义文件后缀, 逗号分隔 (与 --type 取并集)
                         例: -e jpg,png,mp4
   -a, --awards <n>      抽奖个数, 从低奖到高奖依次抽出 (默认: 3)
   -p, --port <n>        服务端口 (默认: 8787)
@@ -28,13 +31,17 @@ const HELP = `
   -h, --help            显示帮助
   -v, --version         显示版本
 
+后缀确定方式: --type 预设 与 --ext 自定义后缀取并集;
+两者都不指定时默认预设 图片 + 视频 + 文本。
+
 配置优先级: 命令行参数 > 环境变量 > 默认值
 环境变量可写在运行目录的 .env / .env.local 中:
-  LOTTERY_DIR (逗号分隔多个目录), LOTTERY_EXTENSIONS, AWARD_COUNT, PORT
+  LOTTERY_DIR (逗号分隔多目录), LOTTERY_TYPES, LOTTERY_EXTENSIONS, AWARD_COUNT, PORT
 
 示例:
-  cd ~/photos && lottery-spin -e jpg,png -a 3
-  lottery-spin --dir ./prizes --awards 5 --port 9000
+  cd ~/photos && lottery-spin -t image -a 3
+  lottery-spin --type image,video --dir ./prizes
+  lottery-spin -t doc -e zip,rar
   lottery-spin -d ./gold -d ./silver -d ./bronze
 `;
 
@@ -42,14 +49,16 @@ function parseArgs(argv) {
   const out = { open: true };
   const aliases = {
     '-d': 'dir', '--dir': 'dir',
+    '-t': 'type', '--type': 'type',
     '-e': 'ext', '--ext': 'ext',
     '-a': 'awards', '--awards': 'awards',
     '-p': 'port', '--port': 'port',
   };
-  // --dir 可重复指定，累积成数组
+  // --dir / --type 可重复指定，累积成数组
+  const multi = new Set(['dir', 'type']);
   const setVal = (key, val) => {
-    if (key === 'dir') {
-      out.dir = out.dir ? [].concat(out.dir, val) : val;
+    if (multi.has(key)) {
+      out[key] = out[key] ? [].concat(out[key], val) : val;
     } else {
       out[key] = val;
     }
@@ -110,6 +119,7 @@ async function main() {
 🎰 澳门老虎机抽奖已启动
    地址:   ${server.url}
    目录:   ${dirsLabel}
+   类型:   ${config.types.length ? config.types.join(', ') : '自定义'}
    后缀:   ${config.extensions.length ? config.extensions.join(', ') : '全部'}
    奖项:   ${config.awardCount} 个 (从低奖到高奖)
    按 Ctrl+C 退出

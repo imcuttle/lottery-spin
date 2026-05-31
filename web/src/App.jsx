@@ -3,6 +3,14 @@ import LotteryScene from './LotteryScene.js';
 
 const RANK_LABELS = ['特等奖', '一等奖', '二等奖', '三等奖', '四等奖', '五等奖'];
 
+const TYPE_LABELS = {
+  image: '图片',
+  video: '视频',
+  audio: '音频',
+  text: '文本',
+  doc: '文档',
+};
+
 // 从低到高的序号文案：第 N 次抽取对应「倒数第 N 个奖项」
 function rankLabel(awardIndexFromLow, total) {
   // awardIndexFromLow: 0 表示最低奖（最后一名），total-1 表示最高奖
@@ -126,6 +134,12 @@ export default function App() {
             <br />
             奖项数量：<b>{awardCount}</b>
             <br />
+            {config.types && config.types.length > 0 && (
+              <>
+                类型：{config.types.map((t) => TYPE_LABELS[t] || t).join(' / ')}
+                <br />
+              </>
+            )}
             后缀：{config.extensions.length ? config.extensions.join(' / ') : '全部'}
           </div>
         )}

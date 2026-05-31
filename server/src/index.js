@@ -93,6 +93,7 @@ export async function startServer(config) {
 
   fastify.get('/api/config', async () => ({
     lotteryDirs: config.lotteryDirs,
+    types: config.types,
     extensions: config.extensions,
     awardCount: config.awardCount,
   }));
