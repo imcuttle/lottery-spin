@@ -31,6 +31,7 @@ export default function App() {
   const [drawing, setDrawing] = useState(false);
   const [currentWinner, setCurrentWinner] = useState(null); // { file, awardIndexFromLow }
   const [toast, setToast] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   const awardCount = config?.awardCount ?? 0;
   const drawnCount = drawnIndices.length;
@@ -210,6 +211,49 @@ export default function App() {
                 {drawing ? '转 动 中…' : '🎲 拉 杆 抽 奖'}
               </button>
             )
+          )}
+        </div>
+      )}
+
+      {/* 已抽奖项 */}
+      {!error && config && (
+        <button
+          className="history-toggle"
+          onClick={() => setShowHistory((v) => !v)}
+        >
+          🗂 已抽奖项 ({drawnCount})
+        </button>
+      )}
+
+      {showHistory && (
+        <div className="history-panel">
+          <div className="history-head">
+            <span>已抽奖项 · {drawnCount}/{awardCount}</span>
+            <button
+              className="history-close"
+              onClick={() => setShowHistory(false)}
+            >
+              ✕
+            </button>
+          </div>
+          {drawnCount === 0 ? (
+            <div className="history-empty">还没有抽出任何奖项</div>
+          ) : (
+            <ul className="history-list">
+              {drawnIndices.map((fileIndex, k) => {
+                const f = files[fileIndex];
+                if (!f) return null;
+                return (
+                  <li key={fileIndex} className="history-item">
+                    <div className="history-rank">
+                      🏆 {rankLabel(k, awardCount)}
+                    </div>
+                    <div className="history-name">{f.name}</div>
+                    <div className="history-path">{f.relativePath}</div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}
