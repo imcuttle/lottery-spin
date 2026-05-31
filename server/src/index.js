@@ -18,38 +18,68 @@ function resolveWebDist() {
 }
 
 /**
- * 用 globby 扫描抽奖目录，返回匹配后缀的文件列表。
+ * 用 globby 扫描所有抽奖目录，合并返回匹配后缀的文件列表。
+ * 多目录时用绝对路径去重，relativePath 带上目录名前缀以便区分同名文件。
  */
 async function scanFiles(config) {
-  const dir = config.lotteryDir;
-  if (!fs.existsSync(dir)) {
-    return { dir, files: [], error: `抽奖目录不存在: ${dir}` };
-  }
-
+  const dirs = config.lotteryDirs;
   const patterns =
     config.extensions.length > 0
       ? config.extensions.map((ext) => `**/*.${ext}`)
       : ['**/*'];
 
-  const entries = await globby(patterns, {
-    cwd: dir,
-    onlyFiles: true,
-    caseSensitiveMatch: false,
-    dot: false,
-  });
+  const multi = dirs.length > 1;
+  const seen = new Set();
+  const files = [];
+  const missingDirs = [];
 
-  const files = entries.map((rel) => {
-    const abs = path.join(dir, rel);
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      missingDirs.push(dir);
+      continue;
+    }
+
+    const entries = await globby(patterns, {
+      cwd: dir,
+      onlyFiles: true,
+      caseSensitiveMatch: false,
+      dot: false,
+    });
+
+    for (const rel of entries) {
+      const abs = path.join(dir, rel);
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      files.push({
+        id: abs,
+        name: path.basename(rel),
+        // 多目录时前缀目录名，避免不同目录同名文件混淆
+        relativePath: multi ? path.join(path.basename(dir), rel) : rel,
+        absolutePath: abs,
+        dir,
+        ext: path.extname(rel).replace(/^\./, '').toLowerCase(),
+      });
+    }
+  }
+
+  // 所有目录都不存在才算错误
+  if (missingDirs.length === dirs.length) {
     return {
-      id: rel,
-      name: path.basename(rel),
-      relativePath: rel,
-      absolutePath: abs,
-      ext: path.extname(rel).replace(/^\./, '').toLowerCase(),
+      dirs,
+      files: [],
+      error: `抽奖目录不存在: ${missingDirs.join(', ')}`,
     };
-  });
+  }
 
-  return { dir, files, error: null };
+  return { dirs, files, error: null };
+}
+
+/** 判断某绝对路径是否位于任一抽奖目录内 */
+function isInsideLotteryDirs(resolved, dirs) {
+  return dirs.some((dir) => {
+    const base = path.resolve(dir);
+    return resolved === base || resolved.startsWith(base + path.sep);
+  });
 }
 
 /**
@@ -62,17 +92,17 @@ export async function startServer(config) {
   const WEB_DIST = resolveWebDist();
 
   fastify.get('/api/config', async () => ({
-    lotteryDir: config.lotteryDir,
+    lotteryDirs: config.lotteryDirs,
     extensions: config.extensions,
     awardCount: config.awardCount,
   }));
 
   fastify.get('/api/files', async (request, reply) => {
-    const { dir, files, error } = await scanFiles(config);
+    const { dirs, files, error } = await scanFiles(config);
     if (error) {
-      return reply.code(404).send({ error, dir, files: [] });
+      return reply.code(404).send({ error, dirs, files: [] });
     }
-    return { dir, total: files.length, awardCount: config.awardCount, files };
+    return { dirs, total: files.length, awardCount: config.awardCount, files };
   });
 
   fastify.post('/api/open', async (request, reply) => {
@@ -81,8 +111,7 @@ export async function startServer(config) {
       return reply.code(400).send({ error: '缺少 path 参数' });
     }
     const resolved = path.resolve(filePath);
-    const base = path.resolve(config.lotteryDir);
-    if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    if (!isInsideLotteryDirs(resolved, config.lotteryDirs)) {
       return reply.code(403).send({ error: '禁止打开抽奖目录之外的文件' });
     }
     if (!fs.existsSync(resolved)) {

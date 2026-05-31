@@ -44,7 +44,9 @@ export default function App() {
           return;
         }
         if (!filesRes.files || filesRes.files.length === 0) {
-          setError(`抽奖目录中没有匹配的文件：${filesRes.dir}`);
+          setError(
+            `抽奖目录中没有匹配的文件：${(filesRes.dirs || []).join('、')}`
+          );
           return;
         }
         if (filesRes.files.length < cfgRes.awardCount) {

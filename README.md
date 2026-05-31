@@ -28,7 +28,7 @@ lottery-spin -e jpg,png -a 3
 
 | 选项 | 说明 | 默认 |
 | --- | --- | --- |
-| `-d, --dir <path>` | 抽奖文件目录 | 当前目录 |
+| `-d, --dir <path>` | 抽奖文件目录，可重复指定多个或逗号分隔 | 当前目录 |
 | `-e, --ext <list>` | 文件后缀集合，逗号分隔，留空匹配全部 | 全部 |
 | `-a, --awards <n>` | 抽奖个数，从低奖到高奖依次抽出 | 3 |
 | `-p, --port <n>` | 服务端口 | 8787 |
@@ -43,7 +43,9 @@ lottery-spin -e jpg,png -a 3
 环境变量可写在运行目录的 `.env` / `.env.local`（`.env.local` 优先级更高）：
 
 ```ini
+# 单个目录，或逗号分隔多个目录
 LOTTERY_DIR=./prizes
+# LOTTERY_DIR=./gold,./silver,./bronze
 LOTTERY_EXTENSIONS=jpg,png,mp4
 AWARD_COUNT=3
 PORT=8787
@@ -57,6 +59,10 @@ lottery-spin -e jpg,png -a 3
 
 # 指定目录与端口，抽 5 个奖
 lottery-spin --dir ./prizes --awards 5 --port 9000
+
+# 多个目录合并抽奖（重复 --dir 或逗号分隔）
+lottery-spin -d ./gold -d ./silver -d ./bronze
+lottery-spin -d ./gold,./silver,./bronze
 
 # 用 .env 配置，不自动开浏览器
 lottery-spin --no-open

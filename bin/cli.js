@@ -18,7 +18,8 @@ const HELP = `
   lottery-spin [选项]
 
 选项:
-  -d, --dir <path>      抽奖文件目录 (默认: 当前目录)
+  -d, --dir <path>      抽奖文件目录, 可重复指定多个或逗号分隔 (默认: 当前目录)
+                        例: -d ./a -d ./b   或   -d ./a,./b
   -e, --ext <list>      文件后缀集合, 逗号分隔, 留空匹配全部
                         例: -e jpg,png,mp4
   -a, --awards <n>      抽奖个数, 从低奖到高奖依次抽出 (默认: 3)
@@ -29,11 +30,12 @@ const HELP = `
 
 配置优先级: 命令行参数 > 环境变量 > 默认值
 环境变量可写在运行目录的 .env / .env.local 中:
-  LOTTERY_DIR, LOTTERY_EXTENSIONS, AWARD_COUNT, PORT
+  LOTTERY_DIR (逗号分隔多个目录), LOTTERY_EXTENSIONS, AWARD_COUNT, PORT
 
 示例:
   cd ~/photos && lottery-spin -e jpg,png -a 3
   lottery-spin --dir ./prizes --awards 5 --port 9000
+  lottery-spin -d ./gold -d ./silver -d ./bronze
 `;
 
 function parseArgs(argv) {
@@ -44,16 +46,24 @@ function parseArgs(argv) {
     '-a': 'awards', '--awards': 'awards',
     '-p': 'port', '--port': 'port',
   };
+  // --dir 可重复指定，累积成数组
+  const setVal = (key, val) => {
+    if (key === 'dir') {
+      out.dir = out.dir ? [].concat(out.dir, val) : val;
+    } else {
+      out[key] = val;
+    }
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '-h' || arg === '--help') { out.help = true; continue; }
     if (arg === '-v' || arg === '--version') { out.version = true; continue; }
     if (arg === '--no-open') { out.open = false; continue; }
     const key = aliases[arg];
-    if (key) { out[key] = argv[++i]; continue; }
+    if (key) { setVal(key, argv[++i]); continue; }
     // 支持 --key=value
     const m = arg.match(/^--([^=]+)=(.*)$/);
-    if (m && aliases[`--${m[1]}`]) { out[aliases[`--${m[1]}`]] = m[2]; }
+    if (m && aliases[`--${m[1]}`]) { setVal(aliases[`--${m[1]}`], m[2]); }
   }
   return out;
 }
@@ -71,10 +81,14 @@ async function main() {
 
   const config = resolveConfig(args, cwd);
 
-  // 启动前校验目录
-  if (!fs.existsSync(config.lotteryDir)) {
-    console.error(`\n✖ 抽奖目录不存在: ${config.lotteryDir}\n`);
+  // 启动前校验目录：全部不存在才报错退出，部分缺失只警告
+  const missing = config.lotteryDirs.filter((d) => !fs.existsSync(d));
+  if (missing.length === config.lotteryDirs.length) {
+    console.error(`\n✖ 抽奖目录不存在: ${missing.join(', ')}\n`);
     process.exit(1);
+  }
+  if (missing.length > 0) {
+    console.warn(`⚠ 以下目录不存在，已跳过: ${missing.join(', ')}`);
   }
 
   let server;
@@ -89,10 +103,13 @@ async function main() {
     process.exit(1);
   }
 
+  const dirsLabel = config.lotteryDirs
+    .map((d) => path.relative(cwd, d) || d)
+    .join('\n           ');
   console.log(`
 🎰 澳门老虎机抽奖已启动
    地址:   ${server.url}
-   目录:   ${config.lotteryDir}
+   目录:   ${dirsLabel}
    后缀:   ${config.extensions.length ? config.extensions.join(', ') : '全部'}
    奖项:   ${config.awardCount} 个 (从低奖到高奖)
    按 Ctrl+C 退出
