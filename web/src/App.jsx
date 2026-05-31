@@ -32,6 +32,7 @@ export default function App() {
   const [currentWinner, setCurrentWinner] = useState(null); // { file, awardIndexFromLow }
   const [toast, setToast] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [historyToast, setHistoryToast] = useState({}); // { [fileIndex]: msg }
 
   const awardCount = config?.awardCount ?? 0;
   const drawnCount = drawnIndices.length;
@@ -119,21 +120,42 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [currentWinner, handleNext, handleDraw]);
 
+  const openFile = useCallback(async (path) => {
+    const res = await fetch('/api/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  }, []);
+
   const handleOpen = useCallback(async () => {
     if (!currentWinner) return;
     setToast('正在打开…');
     try {
-      const res = await fetch('/api/open', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: currentWinner.file.absolutePath }),
-      });
-      const data = await res.json();
-      setToast(res.ok ? '已用系统默认程序打开 ✓' : `打开失败：${data.error}`);
+      await openFile(currentWinner.file.absolutePath);
+      setToast('已用系统默认程序打开 ✓');
     } catch (e) {
-      setToast(`打开失败：${String(e)}`);
+      setToast(`打开失败：${e.message || String(e)}`);
     }
-  }, [currentWinner]);
+  }, [currentWinner, openFile]);
+
+  const handleOpenHistory = useCallback(
+    async (fileIndex, path) => {
+      setHistoryToast((m) => ({ ...m, [fileIndex]: '正在打开…' }));
+      try {
+        await openFile(path);
+        setHistoryToast((m) => ({ ...m, [fileIndex]: '已打开 ✓' }));
+      } catch (e) {
+        setHistoryToast((m) => ({
+          ...m,
+          [fileIndex]: `打开失败：${e.message || String(e)}`,
+        }));
+      }
+    },
+    [openFile]
+  );
 
   return (
     <div className="app">
@@ -250,6 +272,17 @@ export default function App() {
                     </div>
                     <div className="history-name">{f.name}</div>
                     <div className="history-path">{f.relativePath}</div>
+                    <button
+                      className="history-open"
+                      onClick={() => handleOpenHistory(fileIndex, f.absolutePath)}
+                    >
+                      打开文件
+                    </button>
+                    {historyToast[fileIndex] && (
+                      <div className="history-item-toast">
+                        {historyToast[fileIndex]}
+                      </div>
+                    )}
                   </li>
                 );
               })}
