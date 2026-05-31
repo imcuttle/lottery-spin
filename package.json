@@ -1,0 +1,50 @@
+{
+  "name": "lottery-spin",
+  "version": "1.0.0",
+  "description": "目录文件老虎机抽奖 — 扫描目录下匹配后缀的文件作为奖品，澳门风格 Three.js 老虎机抽奖，中奖文件一键用系统默认程序打开。",
+  "type": "module",
+  "bin": {
+    "lottery-spin": "bin/cli.js"
+  },
+  "files": [
+    "bin/",
+    "server/src/",
+    "web/dist/",
+    "README.md"
+  ],
+  "keywords": [
+    "lottery",
+    "raffle",
+    "slot-machine",
+    "threejs",
+    "cli",
+    "fastify",
+    "抽奖",
+    "老虎机"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev:server": "node bin/cli.js --dir ./prizes --port 8799 --no-open",
+    "dev:web": "npm --workspace web run dev",
+    "dev": "concurrently -n server,web -c green,cyan \"npm:dev:server\" \"npm:dev:web\"",
+    "build": "npm --workspace web run build",
+    "start": "node bin/cli.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.0.3",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "globby": "^14.0.2",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

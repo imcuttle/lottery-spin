@@ -1,0 +1,6 @@
+node_modules
+dist
+.DS_Store
+*.log
+# 保留 .env.example，忽略真实环境文件
+.env.local

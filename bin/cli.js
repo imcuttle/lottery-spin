@@ -1,0 +1,116 @@
+#!/usr/bin/env node
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { config as loadDotenv } from 'dotenv';
+import open from 'open';
+import { resolveConfig } from '../server/src/config.js';
+import { startServer } from '../server/src/index.js';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
+
+const HELP = `
+🎰 lottery-spin — 目录文件老虎机抽奖
+
+用法:
+  lottery-spin [选项]
+
+选项:
+  -d, --dir <path>      抽奖文件目录 (默认: 当前目录)
+  -e, --ext <list>      文件后缀集合, 逗号分隔, 留空匹配全部
+                        例: -e jpg,png,mp4
+  -a, --awards <n>      抽奖个数, 从低奖到高奖依次抽出 (默认: 3)
+  -p, --port <n>        服务端口 (默认: 8787)
+      --no-open         启动后不自动打开浏览器
+  -h, --help            显示帮助
+  -v, --version         显示版本
+
+配置优先级: 命令行参数 > 环境变量 > 默认值
+环境变量可写在运行目录的 .env / .env.local 中:
+  LOTTERY_DIR, LOTTERY_EXTENSIONS, AWARD_COUNT, PORT
+
+示例:
+  cd ~/photos && lottery-spin -e jpg,png -a 3
+  lottery-spin --dir ./prizes --awards 5 --port 9000
+`;
+
+function parseArgs(argv) {
+  const out = { open: true };
+  const aliases = {
+    '-d': 'dir', '--dir': 'dir',
+    '-e': 'ext', '--ext': 'ext',
+    '-a': 'awards', '--awards': 'awards',
+    '-p': 'port', '--port': 'port',
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '-h' || arg === '--help') { out.help = true; continue; }
+    if (arg === '-v' || arg === '--version') { out.version = true; continue; }
+    if (arg === '--no-open') { out.open = false; continue; }
+    const key = aliases[arg];
+    if (key) { out[key] = argv[++i]; continue; }
+    // 支持 --key=value
+    const m = arg.match(/^--([^=]+)=(.*)$/);
+    if (m && aliases[`--${m[1]}`]) { out[aliases[`--${m[1]}`]] = m[2]; }
+  }
+  return out;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) { process.stdout.write(HELP); return; }
+  if (args.version) { process.stdout.write(`${pkg.version}\n`); return; }
+
+  const cwd = process.cwd();
+  // 从运行目录加载 .env / .env.local（.env.local 优先级更高）
+  loadDotenv({ path: path.join(cwd, '.env') });
+  loadDotenv({ path: path.join(cwd, '.env.local'), override: true });
+
+  const config = resolveConfig(args, cwd);
+
+  // 启动前校验目录
+  if (!fs.existsSync(config.lotteryDir)) {
+    console.error(`\n✖ 抽奖目录不存在: ${config.lotteryDir}\n`);
+    process.exit(1);
+  }
+
+  let server;
+  try {
+    server = await startServer(config);
+  } catch (err) {
+    if (err && err.code === 'EADDRINUSE') {
+      console.error(`\n✖ 端口 ${config.port} 已被占用，请用 --port 指定其他端口\n`);
+    } else {
+      console.error('\n✖ 启动失败:', err);
+    }
+    process.exit(1);
+  }
+
+  console.log(`
+🎰 澳门老虎机抽奖已启动
+   地址:   ${server.url}
+   目录:   ${config.lotteryDir}
+   后缀:   ${config.extensions.length ? config.extensions.join(', ') : '全部'}
+   奖项:   ${config.awardCount} 个 (从低奖到高奖)
+   按 Ctrl+C 退出
+`);
+
+  if (args.open) {
+    open(server.url).catch(() => {});
+  }
+
+  const shutdown = async () => {
+    await server.close();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
