@@ -344,10 +344,12 @@ export default class LotteryScene {
       reel.group.rotation.x = reel.group.rotation.x % (Math.PI * 2);
       reel.startAngle = reel.group.rotation.x;
 
-      // 目标角度：使 winnerSlot 转到正前方（rotation.x = -slot*STEP）
+      // 目标角度：使 winnerSlot 转到正前方。
+      // 卡片在 theta=slot*STEP，绕 x 轴旋转 phi 后有效角为 theta-phi，
+      // 要居中到 payline 需 theta-phi=0，即 rotation.x = slot*STEP。
       const spins = 7 + r * 1.5 + Math.random();
       reel.targetAngle =
-        -slot * STEP - Math.ceil(spins) * Math.PI * 2;
+        slot * STEP - Math.ceil(spins) * Math.PI * 2;
 
       // 从左到右依次停下
       reel.duration = 2.3 + r * 0.7;

@@ -106,6 +106,18 @@ export default function App() {
     sceneRef.current.reset();
   }, [currentWinner]);
 
+  // 回车：有中奖卡时进入下一个奖项，否则触发抽奖
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Enter' || e.repeat) return;
+      e.preventDefault();
+      if (currentWinner) handleNext();
+      else handleDraw();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [currentWinner, handleNext, handleDraw]);
+
   const handleOpen = useCallback(async () => {
     if (!currentWinner) return;
     setToast('正在打开…');
